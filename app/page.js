@@ -8,25 +8,38 @@ export default function Home() {
   const [profile, setProfile] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
+  const fetchProfile = async (userId) => {
+    const { data: roleData } = await supabase
+      .rpc('get_user_role', { user_id: userId });
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', userId)
+      .single();
+    return {
+      role: roleData || 'student',
+      first_name: profileData?.first_name || '',
+      last_name: profileData?.last_name || '',
+    };
+  };
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUser(session.user);
-        const { data } = await supabase
-          .from('profiles')
-          .select('first_name, last_name, role')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(data);
+        const p = await fetchProfile(session.user.id);
+        setProfile(p);
       }
       setLoaded(true);
     };
     getUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         setUser(session.user);
+        const p = await fetchProfile(session.user.id);
+        setProfile(p);
       } else {
         setUser(null);
         setProfile(null);
@@ -43,9 +56,9 @@ export default function Home() {
     setProfile(null);
   };
 
-  const initials = profile
+  const initials = profile?.first_name || profile?.last_name
     ? `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`.toUpperCase()
-    : '';
+    : user?.email?.[0]?.toUpperCase() || '?';
 
   const dashboardLink = profile?.role === 'super_admin'
     ? '/admin'
@@ -63,15 +76,13 @@ export default function Home() {
           <span className="text-xl font-bold bg-gradient-to-r from-[#4285f4] via-[#ea4335] via-[#fbbc04] to-[#34a853] bg-clip-text text-transparent">LearnHub</span>
         </Link>
         <div className="flex items-center gap-2 md:gap-6">
-          <a href="#features" className="hidden md:block text-sm text-[#9aa0a6] hover:text-white cursor-pointer transition">Features</a>
-          <a href="#courses" className="hidden md:block text-sm text-[#9aa0a6] hover:text-white cursor-pointer transition">Courses</a>
-          <a href="#about" className="hidden md:block text-sm text-[#9aa0a6] hover:text-white cursor-pointer transition">About</a>
+          <a href="#features" className="hidden md:block text-sm text-[#9aa0a6] hover:text-white transition">Features</a>
+          <a href="#courses" className="hidden md:block text-sm text-[#9aa0a6] hover:text-white transition">Courses</a>
+          <a href="#about" className="hidden md:block text-sm text-[#9aa0a6] hover:text-white transition">About</a>
 
           {!loaded ? (
-            /* Loading state — show nothing while checking auth */
             <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse"></div>
           ) : user && profile ? (
-            /* Logged in */
             <div className="flex items-center gap-3">
               <Link href={dashboardLink} className="hidden md:block text-xs text-[#9aa0a6] hover:text-white transition">
                 Dashboard
@@ -89,7 +100,6 @@ export default function Home() {
               </Link>
             </div>
           ) : (
-            /* Logged out */
             <div className="flex items-center gap-2">
               <Link href="/login" className="text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg border border-[#4285f4] text-[#4285f4] hover:bg-[#4285f4] hover:text-white transition">
                 Log in
@@ -102,42 +112,55 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="max-w-5xl mx-auto px-6 pt-14 pb-12 text-center">
-        <span className="inline-block text-xs bg-[#e8f0fe] text-[#1a73e8] px-3 py-1 rounded-full mb-5 font-medium">
-          🎓 Trusted by 10,000+ learners worldwide
-        </span>
-        <h2 className="text-3xl md:text-5xl font-bold text-[#202124] leading-tight mb-5">
-          Learn. Grow. <br />
-          <span className="bg-gradient-to-r from-[#4285f4] via-[#ea4335] to-[#34a853] bg-clip-text text-transparent">
-            Achieve More.
-          </span>
-        </h2>
-        <p className="text-sm md:text-lg text-gray-500 max-w-xl mx-auto mb-8 leading-relaxed">
-          Access hundreds of professional courses, submit assignments, and earn recognised qualifications — all in one place.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12">
-          <Link href={user ? dashboardLink : '/login'} className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-[#4285f4] to-[#34a853] text-white font-medium hover:opacity-90 transition text-sm text-center">
-            {user ? 'Go to dashboard →' : 'Start learning today →'}
-          </Link>
-          <a href="#courses" className="w-full sm:w-auto px-6 py-3 rounded-xl border border-gray-200 bg-white text-[#202124] font-medium hover:border-[#4285f4] transition text-sm text-center">
-            Browse courses
-          </a>
-        </div>
+      {/* Hero — full width with background image */}
+      <section className="relative min-h-[620px] flex items-center justify-center text-center overflow-hidden">
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: `url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1600&auto=format&fit=crop&q=80')`,
+          }}
+        ></div>
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-[#0C0E13]/70"></div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { value: '500+', label: 'Courses available', color: 'text-[#4285f4]' },
-            { value: '10k+', label: 'Active learners', color: 'text-[#34a853]' },
-            { value: '50+', label: 'Qualifications', color: 'text-[#ea4335]' },
-            { value: '98%', label: 'Satisfaction rate', color: 'text-[#fbbc04]' },
-          ].map((s) => (
-            <div key={s.label} className="bg-white rounded-xl p-4 border border-gray-200">
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{s.label}</p>
-            </div>
-          ))}
+        {/* Content */}
+        <div className="relative z-10 max-w-3xl mx-auto px-6 py-20">
+          <span className="inline-block text-xs bg-white/10 text-white border border-white/20 px-3 py-1 rounded-full mb-5 font-medium backdrop-blur-sm">
+            🎓 Trusted by 10,000+ learners worldwide
+          </span>
+          <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-5">
+            Learn. Grow. <br />
+            <span className="bg-gradient-to-r from-[#4285f4] via-[#ea4335] to-[#34a853] bg-clip-text text-transparent">
+              Achieve More.
+            </span>
+          </h2>
+          <p className="text-sm md:text-lg text-white/80 max-w-xl mx-auto mb-8 leading-relaxed">
+            Access hundreds of professional courses, submit assignments, and earn recognised qualifications — all in one place.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12">
+            <Link href={user ? dashboardLink : '/login'} className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-[#4285f4] to-[#34a853] text-white font-medium hover:opacity-90 transition text-sm text-center">
+              {user ? 'Go to dashboard →' : 'Start learning today →'}
+            </Link>
+            <a href="#courses" className="w-full sm:w-auto px-6 py-3 rounded-xl border border-white/30 bg-white/10 text-white font-medium hover:bg-white/20 transition text-sm text-center backdrop-blur-sm">
+              Browse courses
+            </a>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { value: '500+', label: 'Courses available', color: 'text-[#4285f4]' },
+              { value: '10k+', label: 'Active learners', color: 'text-[#34a853]' },
+              { value: '50+', label: 'Qualifications', color: 'text-[#ea4335]' },
+              { value: '98%', label: 'Satisfaction rate', color: 'text-[#fbbc04]' },
+            ].map((s) => (
+              <div key={s.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-xs text-white/70 mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -169,12 +192,12 @@ export default function Home() {
         <p className="text-sm text-gray-400 text-center mb-8">Join thousands of learners already enrolled</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
           {[
-            { id: 1, emoji: '📋', title: 'Level 3 Diploma in Health and Social Care', category: 'Health & Social Care', learners: '2,400+', badge: 'bg-[#e6f4ea] text-[#137333]', banner: 'from-[#e8f0fe] to-[#d2e3fc]' },
-            { id: 2, emoji: '💼', title: 'Level 5 Diploma in Business Management', category: 'Business', learners: '1,800+', badge: 'bg-[#e8f0fe] text-[#1a73e8]', banner: 'from-[#fce8e6] to-[#fad2cf]' },
+            { id: 6, emoji: '📋', title: 'Level 3 Diploma in Health and Social Care', category: 'Health & Social Care', learners: '2,400+', badge: 'bg-[#e6f4ea] text-[#137333]', banner: 'from-[#e8f0fe] to-[#d2e3fc]' },
+            { id: 7, emoji: '💼', title: 'Level 5 Diploma in Business Management', category: 'Business', learners: '1,800+', badge: 'bg-[#e8f0fe] text-[#1a73e8]', banner: 'from-[#fce8e6] to-[#fad2cf]' },
             { id: 3, emoji: '🛡️', title: 'Qualifi Cyber Security Level 4', category: 'Technology', learners: '950+', badge: 'bg-[#fce8e6] text-[#c5221f]', banner: 'from-[#e6f4ea] to-[#ceead6]' },
             { id: 4, emoji: '🏆', title: 'Level 7 Diploma in Leadership and Management', category: 'Leadership', learners: '1,200+', badge: 'bg-[#fff8e1] text-[#f9a825]', banner: 'from-[#fff8e1] to-[#fff3cd]' },
             { id: 5, emoji: '📊', title: 'Level 4 Diploma in Project Management', category: 'Project Management', learners: '870+', badge: 'bg-[#f3e5f5] text-[#7b1fa2]', banner: 'from-[#f3e5f5] to-[#e1bee7]' },
-            { id: 6, emoji: '💰', title: 'Level 5 Diploma in Accounting and Finance', category: 'Accounting', learners: '640+', badge: 'bg-[#e8f5e9] text-[#2e7d32]', banner: 'from-[#e8f5e9] to-[#c8e6c9]' },
+            { id: 8, emoji: '💰', title: 'Level 5 Diploma in Accounting and Finance', category: 'Accounting', learners: '640+', badge: 'bg-[#e8f5e9] text-[#2e7d32]', banner: 'from-[#e8f5e9] to-[#c8e6c9]' },
           ].map((c) => (
             <div key={c.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-[#4285f4] transition">
               <div className={`h-28 bg-gradient-to-br ${c.banner} flex items-center justify-center text-4xl`}>{c.emoji}</div>
@@ -206,8 +229,8 @@ export default function Home() {
               <p className="text-sm text-gray-500 leading-relaxed mb-6">
                 Our courses are accredited by leading awarding bodies including TQUK, OTHM, Qualifi, NOCN and iCQ — ensuring your qualification is recognised by employers globally.
               </p>
-              <Link href="/login" className="inline-block px-6 py-3 rounded-xl bg-gradient-to-r from-[#4285f4] to-[#34a853] text-white text-sm font-medium hover:opacity-90 transition">
-                Join LearnHub today →
+              <Link href={user ? dashboardLink : '/login'} className="inline-block px-6 py-3 rounded-xl bg-gradient-to-r from-[#4285f4] to-[#34a853] text-white text-sm font-medium hover:opacity-90 transition">
+                {user ? 'Go to dashboard →' : 'Join LearnHub today →'}
               </Link>
             </div>
             <div className="bg-[#0C0E13] p-8 md:p-12 flex flex-col justify-center gap-6">
@@ -276,7 +299,7 @@ export default function Home() {
               { label: 'All Courses', href: '#courses' },
               { label: 'Features', href: '#features' },
               { label: 'About Us', href: '#about' },
-              { label: 'Log in', href: '/login' },
+              { label: user ? 'Dashboard' : 'Log in', href: user ? dashboardLink : '/login' },
             ].map((l) => (
               <a key={l.label} href={l.href} className="block text-xs text-gray-500 mb-2 hover:text-white transition">{l.label}</a>
             ))}
